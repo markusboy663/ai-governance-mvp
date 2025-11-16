@@ -102,14 +102,19 @@ async def seed_data(db_session):
     db_session.add(customer)
     await db_session.flush()
     
-    # Generate API key
-    raw_key = f"test_key_{uuid.uuid4().hex[:24]}"
-    key_hash = bcrypt.hashpw(raw_key.encode(), bcrypt.gensalt()).decode()
+    # Generate API key with new format: <key_id>.<secret>
+    key_id = str(uuid.uuid4())
+    secret = f"test_secret_{uuid.uuid4().hex[:24]}"
+    secret_hash = bcrypt.hashpw(secret.encode(), bcrypt.gensalt()).decode()
+    
+    # Full token format
+    raw_key = f"{key_id}.{secret}"
     
     api_key = APIKey(
         id=str(uuid.uuid4()),
+        key_id=key_id,
         customer_id=customer.id,
-        api_key_hash=key_hash,
+        api_key_hash=secret_hash,
         is_active=True
     )
     db_session.add(api_key)

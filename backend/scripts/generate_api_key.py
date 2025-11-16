@@ -17,13 +17,30 @@ async def create_key_for_customer(customer_email: str):
             await session.commit()
             await session.refresh(customer)
 
-        raw_key = "api_" + secrets.token_urlsafe(32)
-        hashed = bcrypt.hashpw(raw_key.encode(), bcrypt.gensalt()).decode()
-        api_key = APIKey(id=str(uuid.uuid4()), customer_id=customer.id, api_key_hash=hashed)
+        # Generate key_id and secret separately
+        key_id = str(uuid.uuid4())
+        secret = secrets.token_urlsafe(32)
+        
+        # Only hash the secret part
+        secret_hash = bcrypt.hashpw(secret.encode(), bcrypt.gensalt()).decode()
+        
+        # Full plaintext token: key_id.secret (shown once)
+        plaintext_token = f"{key_id}.{secret}"
+        
+        # Store in DB
+        api_key = APIKey(
+            id=str(uuid.uuid4()),
+            key_id=key_id,
+            customer_id=customer.id,
+            api_key_hash=secret_hash
+        )
         session.add(api_key)
         await session.commit()
-        print("Created API key (plaintext show once):", raw_key)
-        print("Store hashed key in DB only.")
+        
+        print(f"✅ Created API key (plaintext show once): {plaintext_token}")
+        print(f"📍 key_id (indexed): {key_id}")
+        print(f"🔐 secret (hashed in DB): [bcrypt hash]")
+        print(f"📋 Token format: <key_id>.<secret> for O(1) lookup")
 
 if __name__ == "__main__":
     import sys
