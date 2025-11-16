@@ -33,6 +33,7 @@ from sqlmodel import SQLModel
 from db import AsyncSessionLocal, SessionDep, get_session
 from async_logger import init_logger, shutdown_logger
 from auth import api_key_dependency
+from rate_limit import check_rate_limit
 
 # Test database configuration - commented out since we use in-memory testing
 # TEST_DATABASE_URL = os.getenv(
@@ -40,14 +41,20 @@ from auth import api_key_dependency
 #     "postgresql+asyncpg://postgres:postgres@localhost:5432/test_ai_governance"
 # )
 
-# Mock API Key for testing
-MOCK_API_KEY = APIKey(
-    id="test-id-1",
-    key_id="test-key-id",
-    customer_id="test-customer-123",
-    api_key_hash="mock-hash",
-    is_active=True
-)
+# Mock API Key for testing - will be created with unique ID per test
+def create_mock_api_key(key_id: str = "test-key-id"):
+    """Create a mock API key with optional custom ID"""
+    return APIKey(
+        id=f"test-id-{key_id}",
+        key_id=key_id,
+        customer_id="test-customer-123",
+        api_key_hash="mock-hash",
+        is_active=True
+    )
+
+
+# Default mock API key
+MOCK_API_KEY = create_mock_api_key()
 
 
 def mock_api_key_dependency():
@@ -56,8 +63,15 @@ def mock_api_key_dependency():
 
 
 @pytest.fixture
-def client():
+def client(request):
     """Create test client with app - mocks authentication"""
+    # Use a unique key ID per test to avoid rate limit conflicts
+    test_name = request.node.name
+    unique_key_id = f"{test_name}-key"
+    
+    global MOCK_API_KEY
+    MOCK_API_KEY = create_mock_api_key(unique_key_id)
+    
     # Override auth to use mock API key
     app.dependency_overrides[api_key_dependency] = mock_api_key_dependency
     test_client = TestClient(app)
@@ -75,10 +89,14 @@ def client_no_auth():
 
 
 @pytest.fixture
-def seed_data():
+def seed_data(request):
     """Return mock test data for API testing"""
+    # Use unique key ID per test to avoid rate limit conflicts
+    test_name = request.node.name
+    unique_key_id = f"{test_name}-key"
+    
     return {
-        "raw_key": "test-api-key-12345678901234567890",
+        "raw_key": f"{unique_key_id}.12345678901234567890",
         "customer_id": "test-customer-123"
     }
 
@@ -305,10 +323,6 @@ class TestE2EIntegration:
             headers={"Authorization": f"Bearer {raw_key}"}
         )
         
-        # Might get 429 if rate limited from previous test
-        if response.status_code == 429:
-            pytest.skip("Rate limit hit from previous test")
-        
         assert response.status_code == 200
         data = response.json()
         
@@ -337,10 +351,6 @@ class TestE2EIntegration:
                 },
                 headers={"Authorization": f"Bearer {raw_key}"}
             )
-            # Might get 429 if rate limited from previous test
-            if response.status_code == 429:
-                pytest.skip("Rate limit hit from previous test")
-            
             assert response.status_code == 200
             data = response.json()
             assert data["allowed"] is True
@@ -357,10 +367,6 @@ class TestE2EIntegration:
             },
             headers={"Authorization": f"Bearer {raw_key}"}
         )
-        # Might get 429 if rate limited from previous test
-        if response.status_code == 429:
-            pytest.skip("Rate limit hit from previous test")
-        
         assert response.status_code == 200
         data = response.json()
         assert data["allowed"] is True
@@ -378,9 +384,5 @@ class TestE2EIntegration:
             },
             headers={"Authorization": f"Bearer {raw_key}"}
         )
-        # Might get 429 if rate limited from previous test
-        if response.status_code == 429:
-            pytest.skip("Rate limit hit from previous test")
-        
         # Should either accept or return validation error
         assert response.status_code in [200, 422]

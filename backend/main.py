@@ -156,7 +156,7 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
     await check_rate_limit(api_key.id, limit=100, window=60)
     
     # Security: reject if entire request contains forbidden fields
-    if contains_forbidden_fields(body.dict()):
+    if contains_forbidden_fields(body.model_dump()):
         raise HTTPException(
             status_code=400, 
             detail=f"Request contains forbidden content fields: {FORBIDDEN_FIELDS}"
