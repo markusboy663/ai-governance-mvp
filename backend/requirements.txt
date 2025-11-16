@@ -10,3 +10,4 @@ pytest-asyncio
 httpx
 sentry-sdk
 psycopg2-binary
+aioredis

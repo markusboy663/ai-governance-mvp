@@ -54,7 +54,7 @@ def health():
 async def evaluate(request: Request, api_key: APIKey = Depends(api_key_dependency)):
     """Protected endpoint - requires valid API key in Authorization header"""
     # Rate limit check
-    check_rate_limit(api_key.id, limit=100, window=60)
+    await check_rate_limit(api_key.id, limit=100, window=60)
     
     return {
         "status": "ok",
@@ -79,7 +79,7 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
     - Metadata only - no sensitive content
     """
     # Rate limit check (100 req/min per API key)
-    check_rate_limit(api_key.id, limit=100, window=60)
+    await check_rate_limit(api_key.id, limit=100, window=60)
     
     # Security: reject if entire request contains forbidden fields
     if contains_forbidden_fields(body.dict()):
