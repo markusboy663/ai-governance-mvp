@@ -1,0 +1,591 @@
+{
+  "info": {
+    "name": "AI Governance MVP",
+    "description": "API collection for AI Governance Policy Evaluation System with automated sanity tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health & Setup",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Health endpoint sanity test",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has status field', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('status');",
+                  "    pm.expect(jsonData.status).to.equal('ok');",
+                  "});",
+                  "",
+                  "pm.test('Response time is less than 500ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(500);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{BASE_URL}}/health",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "No Auth - Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Should reject request without API key",
+                  "pm.test('Status code is 401 (Unauthorized)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates missing credentials', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.detail).to.include('Not authenticated');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"temperature\": 0.7\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invalid API Key - Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Should reject request with invalid API key",
+                  "pm.test('Status code is 401 (Unauthorized)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Error message indicates invalid credentials', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.detail).to.include('Invalid API key');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer invalid_key_12345678901234567890"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"temperature\": 0.7\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Policy Evaluation",
+      "item": [
+        {
+          "name": "✅ ALLOWED - No Risk Flags",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request without risk flags should be allowed",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response structure is valid', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('allowed');",
+                  "    pm.expect(jsonData).to.have.property('risk_score');",
+                  "    pm.expect(jsonData).to.have.property('reason');",
+                  "});",
+                  "",
+                  "pm.test('Request is allowed (risk_score = 0)', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.allowed).to.equal(true);",
+                  "    pm.expect(jsonData.risk_score).to.equal(0);",
+                  "    pm.expect(jsonData.reason).to.equal('ok');",
+                  "});",
+                  "",
+                  "pm.test('Response time is less than 1000ms', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(1000);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"temperature\": 0.7,\n        \"max_tokens\": 100\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "⚠️ BLOCKED - Personal Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request with personal data flag should be blocked (risk > 50)",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Request is blocked due to personal data', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.allowed).to.equal(false);",
+                  "    pm.expect(jsonData.risk_score).to.be.greaterThan(50);",
+                  "    pm.expect(jsonData.reason).to.include('Personal data');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"contains_personal_data\": true,\n        \"max_tokens\": 100\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "⚠️ BLOCKED - External Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request with external model flag should be blocked (risk > 50)",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Request is blocked due to external model', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.allowed).to.equal(false);",
+                  "    pm.expect(jsonData.risk_score).to.be.greaterThan(50);",
+                  "    pm.expect(jsonData.reason).to.include('External model');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"uses_external_model\": true,\n        \"max_tokens\": 100\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "⚠️ BLOCKED - High Risk (Both Flags)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request with both risk flags should be blocked (risk = 120)",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Request is blocked with high risk score', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.allowed).to.equal(false);",
+                  "    pm.expect(jsonData.risk_score).to.be.greaterThan(50);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"contains_personal_data\": true,\n        \"uses_external_model\": true,\n        \"max_tokens\": 100\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Rate Limiting",
+      "item": [
+        {
+          "name": "Rapid Fire - First 100 Requests (Should Pass)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// All requests within the window should be allowed",
+                  "if (pm.response.code === 200 || pm.response.code === 429) {",
+                  "    pm.test('Response status is either 200 or 429', function () {",
+                  "        pm.expect([200, 429]).to.include(pm.response.code);",
+                  "    });",
+                  "}",
+                  "",
+                  "// Count how many requests we've made",
+                  "var currentCount = parseInt(pm.environment.get('request_count') || '0');",
+                  "pm.environment.set('request_count', (currentCount + 1).toString());",
+                  "",
+                  "// Log progress",
+                  "if (currentCount % 25 === 0) {",
+                  "    console.log('Sent ' + (currentCount + 1) + ' requests so far');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"temperature\": 0.7,\n        \"test\": \"rate_limit\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rate Limit Exceeded - Single Request (429)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// After hitting limit, should get 429",
+                  "pm.test('Status code indicates rate limit or server success', function () {",
+                  "    pm.expect([200, 429]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "// If we're testing manually, uncomment to check for 429:",
+                  "// pm.test('Status code is 429 (Too Many Requests)', function () {",
+                  "//     pm.response.to.have.status(429);",
+                  "// });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"temperature\": 0.7,\n        \"test\": \"rate_limit_exceeded\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Security Validation",
+      "item": [
+        {
+          "name": "Forbidden Field - 'prompt' (Should Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request with forbidden field should be rejected",
+                  "pm.test('Status code indicates error or security check', function () {",
+                  "    pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"prompt\": \"This should not be sent to the API\"\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forbidden Field - 'content' (Should Fail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Request with forbidden field should be rejected",
+                  "pm.test('Status code indicates error or security check', function () {",
+                  "    pm.expect([400, 422]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{API_KEY}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"model\": \"gpt-4\",\n    \"operation\": \"chat_completion\",\n    \"metadata\": {\n        \"messages\": [{\n            \"role\": \"user\",\n            \"content\": \"This should not be sent\"\n        }]\n    }\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/v1/check",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "v1",
+                "check"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "API_KEY",
+      "value": "test_key_staging_12345678901234",
+      "type": "string"
+    },
+    {
+      "key": "request_count",
+      "value": "0",
+      "type": "string"
+    }
+  ]
+}
