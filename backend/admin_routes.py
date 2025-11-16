@@ -6,13 +6,14 @@ Admin Dashboard API routes
 /api/admin/logs - Usage logs
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from datetime import datetime, timedelta
 from typing import Optional
 import logging
+import os
 
 from db import SessionDep, get_session
-from models import APIKey, UsageLog, is_admin_key
+from models import APIKey, UsageLog
 from admin_models import (
     APIKeyResponse,
     APIKeyCreateRequest,
@@ -27,10 +28,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-
 # ============================================================================
 # Authentication: Admin Key Check
 # ============================================================================
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "admin-secret-key-change-in-prod")
+
+async def is_admin_key(request: Request):
+    """Check if request has valid admin API key"""
+    api_key = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if api_key == ADMIN_API_KEY:
+        return api_key
+    return None
 
 async def require_admin_key(api_key: str = Depends(is_admin_key)):
     """Dependency to require admin API key"""
@@ -229,16 +238,15 @@ async def toggle_policy(
 
 @router.get("/logs", response_model=UsageLogListResponse)
 async def list_usage_logs(
+    session: SessionDep,
+    admin_key=Depends(require_admin_key),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     model: Optional[str] = Query(None),
     operation: Optional[str] = Query(None),
-    session: SessionDep = Depends(get_session),
-    admin_key=Depends(require_admin_key)
 ):
     """
     List usage logs with pagination.
-    
     Filters:
     - model: Filter by model name
     - operation: Filter by operation

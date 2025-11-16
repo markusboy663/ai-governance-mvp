@@ -1,6 +1,8 @@
 from sqlmodel import SQLModel, create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi import Depends
+from typing import Annotated, AsyncGenerator
 import os
 from dotenv import load_dotenv
 
@@ -21,6 +23,16 @@ else:
     print("⚠️  DATABASE_URL not set - database features disabled")
     engine = None
     AsyncSessionLocal = None
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get database session"""
+    if AsyncSessionLocal is None:
+        raise RuntimeError("Database not configured - set DATABASE_URL")
+    async with AsyncSessionLocal() as session:
+        yield session
+
+# Type annotation for session dependency - use this in route parameters
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 async def init_db():
     if engine is None:

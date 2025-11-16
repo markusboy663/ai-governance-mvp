@@ -208,6 +208,13 @@ async def _batch_write(batch: List[LogEntry]):
     if not batch:
         return
     
+    # Skip if database not configured
+    if AsyncSessionLocal is None:
+        logger.debug(f"Database not configured - skipping batch write of {len(batch)} logs")
+        for entry in batch:
+            record_log_dropped()
+        return
+    
     try:
         async with AsyncSessionLocal() as session:
             # Convert LogEntry objects to UsageLog models

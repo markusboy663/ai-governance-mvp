@@ -198,13 +198,19 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
 @app.on_event("startup")
 async def startup_event():
     """Initialize async logger on startup"""
-    await init_logger()
+    try:
+        await init_logger()
+    except Exception as e:
+        print(f"⚠️  Logger initialization failed (OK for testing): {e}")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Flush logs on shutdown"""
-    await shutdown_logger()
+    try:
+        await shutdown_logger()
+    except Exception as e:
+        print(f"⚠️  Logger shutdown failed: {e}")
 
 
 @app.get("/debug/logs/queue")
