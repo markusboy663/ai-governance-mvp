@@ -78,6 +78,7 @@ ai-governance-mvp/
 │   ├── .env.local                # Frontend env vars
 │   ├── Dockerfile                # Container image
 │   └── README.md                 # Frontend setup guide
+│   └── DASHBOARD_README.md       # Admin dashboard documentation
 │
 ├── .github/workflows/            # CI/CD automation
 │   ├── ci.yml                    # Run tests on push/PR
@@ -94,9 +95,12 @@ ai-governance-mvp/
 │   └── SCALING.md                # MVP-2 optimization roadmap
 │
 ├── QUICK_START.md                # Step-by-step setup guide
-├── STARTUP_REPORT.md             # System verification results
-├── STARTUP_SUCCESS.md            # Deployment readiness
-└── CHECKLIST_COMPLETE.md         # Feature completion status
+├── OBSERVABILITY.md              # Prometheus + Grafana metrics
+├── SECURITY_LOAD_TESTING.md     # Load testing + security audit
+├── LOAD_TEST_QUICK_START.md      # Load test commands
+├── PILOT_LAUNCH_CHECKLIST.md    # Go/no-go criteria
+├── MVP2_COMPLETION_REPORT.md    # Full MVP-2 summary
+└── STARTUP_REPORT.md             # System verification results
 ```
 
 ### Technology Stack
@@ -316,6 +320,169 @@ All protected endpoints require `Authorization: Bearer <api_key>` header.
   "message": "API key verified successfully"
 }
 ```
+
+---
+
+## 📊 Admin Dashboard
+
+### Overview
+The Admin Dashboard provides governance administrators with a web UI to manage API keys, configure policies, and view usage logs. Designed for pilot customers to monitor and control AI governance in real-time.
+
+**Access**: http://localhost:3000 (after `npm run dev`)
+
+### Features
+
+#### 1. **API Keys Management** (`/dashboard/keys`)
+Manage customer API keys with full lifecycle support:
+
+| Feature | Details |
+|---------|---------|
+| **List Keys** | View all active API keys with request counts |
+| **Create Key** | Generate new API key (shows secret once) |
+| **Rotate Key** | Invalidate old key, generate new one |
+| **Delete Key** | Remove unused keys with confirmation |
+| **Copy to Clipboard** | Copy key ID (UUID) for quick reference |
+| **Security** | Secret never displayed (key_id shown instead) |
+
+**Columns**: Name, Key ID (UUID), Created Date, Last Used, Requests, Actions
+
+**Screenshot Flow**:
+1. Click "Create New Key"
+2. Enter key name, click Create
+3. Secret shown once (with copy button)
+4. Table updates with new key
+5. Use key ID in requests
+
+---
+
+#### 2. **Governance Policies** (`/dashboard/policies`)
+Toggle governance policies and monitor violations:
+
+| Policy | Purpose | Details |
+|--------|---------|---------|
+| **PII Detection** | Block requests with personal data | Violations: 42 last week |
+| **External Model** | Restrict non-approved models | Violations: 8 last week |
+| **Rate Limiting** | Enforce request quotas | Violations: 156 last week |
+
+**Features**:
+- Green toggle = Policy active
+- Gray toggle = Policy disabled
+- Violation counts updated in real-time
+- Warning box about disabling policies
+- Policy descriptions with impact
+
+---
+
+#### 3. **Usage Logs** (`/dashboard/logs`)
+View and filter AI operation logs with privacy protection:
+
+**Columns**: Time, API Key Name, Model, Operation, Status, Reason, Latency (ms)
+
+**Features**:
+- **Pagination**: 20 logs per page (smart page numbers)
+- **Filter by Model**: Dropdown (gpt-4, gpt-3.5, claude-3)
+- **Filter by Status**: Allowed ✓ / Blocked ✗
+- **Privacy**: Input text never shown (only length displayed)
+- **Status Badges**: Green for allowed, red for blocked
+- **Latency Display**: Milliseconds for performance monitoring
+
+**Privacy Notice**:
+- ✗ Full API secrets never displayed
+- ✗ User input content never shown
+- ✓ API key name displayed
+- ✓ Input length displayed (not content)
+- ✓ Decision + reason displayed
+- ✓ Latency in milliseconds displayed
+
+---
+
+### Backend Admin API
+
+The dashboard connects to these protected endpoints. All require `Authorization: Bearer <admin_api_key>` header.
+
+#### API Keys Endpoints
+```bash
+# List all keys
+GET /api/admin/keys
+
+# Create new key
+POST /api/admin/keys
+{
+  "name": "Production Key"
+}
+
+# Rotate existing key
+POST /api/admin/keys/{key_id}/rotate
+
+# Delete key
+DELETE /api/admin/keys/{key_id}
+```
+
+#### Policies Endpoints
+```bash
+# List all policies
+GET /api/admin/policies
+
+# Toggle policy
+PATCH /api/admin/policies/{policy_id}
+{
+  "enabled": false
+}
+```
+
+#### Usage Logs Endpoint
+```bash
+# List logs (paginated)
+GET /api/admin/logs?page=1&page_size=20&model=gpt-4&operation=allowed
+
+# Query Parameters:
+# - page: Page number (1-indexed)
+# - page_size: Items per page (default 20)
+# - model: Filter by model (optional)
+# - operation: Filter by allowed/blocked (optional)
+```
+
+---
+
+### Dashboard Security
+
+**Data Masking**:
+- API keys shown as UUIDs only (never full secret)
+- Request metadata shown (not content/prompts)
+- Input lengths shown (not actual text)
+
+**Authentication**:
+- CORS: Restricted to localhost:3000 (development), configure for production
+- Admin Key: Required for all /api/admin endpoints
+- Session: Stateless (no server sessions)
+
+**HTTPS**: Enforce in production via reverse proxy
+
+---
+
+### Setting Up Dashboard Admin Key
+
+```bash
+# Generate admin API key (same script as user keys)
+cd backend
+python scripts/generate_api_key.py admin@example.com
+
+# Store in frontend/.env.local:
+NEXT_PUBLIC_ADMIN_KEY=<key_from_previous_command>
+
+# Frontend uses key for all dashboard API calls
+```
+
+---
+
+### Dashboard Deployment
+
+See **frontend/DASHBOARD_README.md** for:
+- Detailed feature documentation
+- Architecture diagrams
+- Advanced configuration
+- Troubleshooting guide
+- Production deployment steps
 
 ---
 
