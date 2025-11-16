@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from auth import api_key_dependency
@@ -10,6 +11,7 @@ from metrics import (
     record_request, record_governance_decision, record_rate_limit_hit,
     record_log_queued, record_log_dropped, set_queue_stats, get_metrics
 )
+from admin_routes import router as admin_router
 import uuid
 from db import AsyncSessionLocal
 import sentry_sdk
@@ -21,6 +23,18 @@ if SENTRY_DSN:
     sentry_sdk.init(SENTRY_DSN, traces_sample_rate=0.0)
 
 app = FastAPI(title="AI Governance MVP")
+
+# Enable CORS for frontend dashboard
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Add production domains
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include admin routes
+app.include_router(admin_router)
 
 # Security: forbidden fields that should never be in request body
 FORBIDDEN_FIELDS = {"prompt", "text", "input", "message", "messages", "content"}
