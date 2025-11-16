@@ -23,25 +23,7 @@ SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
     sentry_sdk.init(SENTRY_DSN, traces_sample_rate=0.0)
 
-# Lifespan context manager for startup/shutdown
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Handle startup and shutdown events"""
-    # Startup
-    try:
-        await init_logger()
-    except Exception as e:
-        print(f"⚠️  Logger initialization failed (OK for testing): {e}")
-    
-    yield
-    
-    # Shutdown
-    try:
-        await shutdown_logger()
-    except Exception as e:
-        print(f"⚠️  Logger shutdown failed: {e}")
-
-app = FastAPI(title="AI Governance MVP", lifespan=lifespan)
+app = FastAPI(title="AI Governance MVP")
 
 # Enable CORS for frontend dashboard
 app.add_middleware(
