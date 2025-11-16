@@ -25,11 +25,12 @@ from sqlalchemy.orm import sessionmaker
 from typing import AsyncGenerator
 import uuid
 import bcrypt
+from fastapi.testclient import TestClient
 
 from main import app, CheckRequest
 from models import Customer, APIKey, Policy, CustomerPolicy
 from sqlmodel import SQLModel
-from db import AsyncSessionLocal
+from db import AsyncSessionLocal, SessionDep
 from async_logger import init_logger, shutdown_logger
 
 # Test database configuration
@@ -189,41 +190,36 @@ async def seed_data(db_session):
 
 
 @pytest.fixture
-async def client(db_session):
+def client(db_session):
     """Create test client with app"""
-    # Initialize async logger for tests
-    await init_logger()
-    
     # Override dependency to use test session
-    async def override_get_session():
-        return db_session
+    async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
     
-    from main import app
-    app.dependency_overrides[AsyncSessionLocal] = override_get_session
+    app.dependency_overrides[SessionDep] = override_get_session
     
-    async with httpx.AsyncClient(app=app, base_url="http://test") as client:
-        yield client
+    # Use sync TestClient instead of AsyncClient
+    test_client = TestClient(app)
+    
+    yield test_client
     
     # Cleanup
-    await shutdown_logger()
     app.dependency_overrides.clear()
 
 
 class TestE2EIntegration:
     """End-to-end integration tests"""
 
-    @pytest.mark.asyncio
-    async def test_health_endpoint(self, client):
+    def test_health_endpoint(self, client):
         """Test 1: Health check endpoint (no auth required)"""
-        response = await client.get("/health")
+        response = client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
 
-    @pytest.mark.asyncio
-    async def test_auth_invalid_key(self, client):
+    def test_auth_invalid_key(self, client):
         """Test 2: Invalid API key should be rejected"""
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -236,10 +232,9 @@ class TestE2EIntegration:
         data = response.json()
         assert "Invalid" in data["detail"] or "authenticated" in data["detail"].lower()
 
-    @pytest.mark.asyncio
-    async def test_auth_missing_header(self, client):
+    def test_auth_missing_header(self, client):
         """Test 3: Missing auth header should be rejected"""
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -251,11 +246,10 @@ class TestE2EIntegration:
         data = response.json()
         assert "authenticated" in data["detail"].lower()
 
-    @pytest.mark.asyncio
-    async def test_allowed_operation(self, client, seed_data):
+    def test_allowed_operation(self, client, seed_data):
         """Test 4: Valid request with no risk flags should be allowed"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -273,11 +267,10 @@ class TestE2EIntegration:
         assert data["risk_score"] == 0
         assert data["reason"] == "ok"
 
-    @pytest.mark.asyncio
-    async def test_blocked_personal_data(self, client, seed_data):
+    def test_blocked_personal_data(self, client, seed_data):
         """Test 5: Request with personal data flag should be blocked"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -295,11 +288,10 @@ class TestE2EIntegration:
         assert data["risk_score"] >= 70
         assert "Personal" in data["reason"] or "personal" in data["reason"]
 
-    @pytest.mark.asyncio
-    async def test_blocked_external_model(self, client, seed_data):
+    def test_blocked_external_model(self, client, seed_data):
         """Test 6: Request with external model flag should be blocked"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -317,11 +309,10 @@ class TestE2EIntegration:
         assert data["risk_score"] >= 50
         assert "External" in data["reason"] or "external" in data["reason"]
 
-    @pytest.mark.asyncio
-    async def test_blocked_high_risk(self, client, seed_data):
+    def test_blocked_high_risk(self, client, seed_data):
         """Test 7: Request with both risk flags should be blocked with high score"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -339,11 +330,10 @@ class TestE2EIntegration:
         assert data["allowed"] is False
         assert data["risk_score"] >= 100
 
-    @pytest.mark.asyncio
-    async def test_forbidden_field_prompt(self, client, seed_data):
+    def test_forbidden_field_prompt(self, client, seed_data):
         """Test 8: Request with 'prompt' field should be rejected"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -357,11 +347,10 @@ class TestE2EIntegration:
         # Should be rejected at validation level
         assert response.status_code in [400, 422]
 
-    @pytest.mark.asyncio
-    async def test_forbidden_field_content(self, client, seed_data):
+    def test_forbidden_field_content(self, client, seed_data):
         """Test 9: Request with 'content' field should be rejected"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -380,13 +369,12 @@ class TestE2EIntegration:
         # Should be rejected at validation level
         assert response.status_code in [400, 422]
 
-    @pytest.mark.asyncio
-    async def test_multiple_requests_same_key(self, client, seed_data):
+    def test_multiple_requests_same_key(self, client, seed_data):
         """Test 10: Multiple requests with same key should work"""
         raw_key = seed_data["raw_key"]
         
         for i in range(5):
-            response = await client.post(
+            response = client.post(
                 "/v1/check",
                 json={
                     "model": "gpt-4",
@@ -399,8 +387,7 @@ class TestE2EIntegration:
             data = response.json()
             assert data["allowed"] is True
 
-    @pytest.mark.asyncio
-    async def test_rate_limiting(self, client, seed_data):
+    def test_rate_limiting(self, client, seed_data):
         """Test 11: Rate limiting should be enforced"""
         raw_key = seed_data["raw_key"]
         
@@ -409,7 +396,7 @@ class TestE2EIntegration:
         blocked_count = 0
         
         for i in range(110):
-            response = await client.post(
+            response = client.post(
                 "/v1/check",
                 json={
                     "model": "gpt-4",
@@ -428,11 +415,10 @@ class TestE2EIntegration:
         # Exact count depends on rate limit window
         assert allowed_count >= 90, f"Expected at least 90 allowed, got {allowed_count}"
 
-    @pytest.mark.asyncio
-    async def test_response_structure(self, client, seed_data):
+    def test_response_structure(self, client, seed_data):
         """Test 12: Response structure should match schema"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -454,15 +440,14 @@ class TestE2EIntegration:
         assert isinstance(data["reason"], str)
         assert data["risk_score"] >= 0
 
-    @pytest.mark.asyncio
-    async def test_different_models(self, client, seed_data):
+    def test_different_models(self, client, seed_data):
         """Test 13: Different model values should be accepted"""
         raw_key = seed_data["raw_key"]
         
         models = ["gpt-4", "gpt-3.5-turbo", "claude-2", "custom-model"]
         
         for model in models:
-            response = await client.post(
+            response = client.post(
                 "/v1/check",
                 json={
                     "model": model,
@@ -475,11 +460,10 @@ class TestE2EIntegration:
             data = response.json()
             assert data["allowed"] is True
 
-    @pytest.mark.asyncio
-    async def test_edge_case_empty_metadata(self, client, seed_data):
+    def test_edge_case_empty_metadata(self, client, seed_data):
         """Test 14: Empty metadata should be handled"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
@@ -493,11 +477,10 @@ class TestE2EIntegration:
         assert data["allowed"] is True
         assert data["risk_score"] == 0
 
-    @pytest.mark.asyncio
-    async def test_edge_case_null_metadata(self, client, seed_data):
+    def test_edge_case_null_metadata(self, client, seed_data):
         """Test 15: Null metadata should be handled"""
         raw_key = seed_data["raw_key"]
-        response = await client.post(
+        response = client.post(
             "/v1/check",
             json={
                 "model": "gpt-4",
