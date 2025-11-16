@@ -6,9 +6,14 @@ from auth import api_key_dependency
 from models import APIKey
 from rate_limit import check_rate_limit
 from async_logger import init_logger, shutdown_logger, queue_log, get_queue_stats
+from metrics import (
+    record_request, record_governance_decision, record_rate_limit_hit,
+    record_log_queued, record_log_dropped, set_queue_stats, get_metrics
+)
 import uuid
 from db import AsyncSessionLocal
 import sentry_sdk
+import time
 
 # Initialize Sentry for error tracking (optional in dev)
 SENTRY_DSN = os.getenv("SENTRY_DSN", "")
@@ -50,6 +55,41 @@ class CheckResponse(BaseModel):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    return get_metrics()
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    """Record metrics for all requests"""
+    start_time = time.time()
+    
+    try:
+        response = await call_next(request)
+        latency_ms = (time.time() - start_time) * 1000
+        
+        # Record metrics
+        record_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=response.status_code,
+            latency_ms=latency_ms
+        )
+        
+        return response
+    except Exception as e:
+        latency_ms = (time.time() - start_time) * 1000
+        record_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status_code=500,
+            latency_ms=latency_ms
+        )
+        raise
 
 @app.post("/api/evaluate")
 async def evaluate(request: Request, api_key: APIKey = Depends(api_key_dependency)):
@@ -108,6 +148,14 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
         reason = "external_model_detected"
     
     allowed = risk_score < 50
+
+    # Record governance decision metric
+    record_governance_decision(
+        allowed=allowed,
+        model=model,
+        operation=operation,
+        reason=reason
+    )
 
     # AUDIT LOGGING: Queue log to async queue (non-blocking)
     # Background worker batches and writes every N seconds or M logs

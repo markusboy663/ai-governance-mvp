@@ -18,6 +18,7 @@ from time import time
 from typing import Dict, Tuple, Optional
 from fastapi import HTTPException
 import logging
+from metrics import record_rate_limit_hit
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +223,7 @@ async def check_rate_limit(
     """
     allowed, info = await allow_request(api_key_id, limit, window)
     if not allowed:
+        record_rate_limit_hit(api_key_id)  # Record metric
         raise HTTPException(
             status_code=429,
             detail=f"Rate limit exceeded: {limit} requests per {window} seconds",

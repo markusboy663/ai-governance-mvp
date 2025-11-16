@@ -11,3 +11,4 @@ httpx
 sentry-sdk
 psycopg2-binary
 aioredis
+prometheus-client

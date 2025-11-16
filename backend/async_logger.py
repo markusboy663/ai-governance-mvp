@@ -20,6 +20,7 @@ from typing import List, Optional
 from datetime import datetime
 from models import UsageLog
 from db import AsyncSessionLocal
+from metrics import record_log_queued, record_log_written, record_log_dropped, set_queue_stats
 
 logger = logging.getLogger(__name__)
 
@@ -147,9 +148,11 @@ async def queue_log(
     try:
         # Non-blocking put (raises asyncio.QueueFull if full)
         _log_queue.put_nowait(entry)
+        record_log_queued()  # Record metric
         return True
     except asyncio.QueueFull:
         logger.error("Log queue full - dropping entry")
+        record_log_dropped()  # Record metric
         return False
 
 
@@ -228,6 +231,7 @@ async def _batch_write(batch: List[LogEntry]):
             session.add_all(logs)
             await session.commit()
             
+            record_log_written(len(batch))  # Record metric
             logger.debug(f"✅ Flushed {len(batch)} logs to database")
     
     except Exception as e:
@@ -240,10 +244,15 @@ async def get_queue_stats() -> dict:
     if _log_queue is None:
         return {"status": "not_initialized"}
     
-    return {
+    stats = {
         "status": "running",
         "queue_size": _log_queue.qsize(),
         "queue_maxsize": _log_queue.maxsize,
         "batch_size": BATCH_SIZE,
         "flush_interval": FLUSH_INTERVAL
     }
+    
+    # Update metrics gauge
+    set_queue_stats(_log_queue.qsize(), _log_queue.maxsize)
+    
+    return stats
