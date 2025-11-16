@@ -16,11 +16,11 @@ if DATABASE_URL:
         engine = create_async_engine(DATABASE_URL, echo=False, future=True)
         AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     except Exception as e:
-        print(f"⚠️  Database connection error (this is OK for testing): {e}")
+        print(f"[WARNING] Database connection error (this is OK for testing): {e}")
         engine = None
         AsyncSessionLocal = None
 else:
-    print("⚠️  DATABASE_URL not set - database features disabled")
+    print("[WARNING] DATABASE_URL not set - database features disabled")
     engine = None
     AsyncSessionLocal = None
 
@@ -36,7 +36,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 async def init_db():
     if engine is None:
-        print("⚠️  Cannot init_db - engine not configured")
+        print("[WARNING] Cannot init_db - engine not configured")
         return
     import models  # sørg for at models importeres så metadata finnes
     async with engine.begin() as conn:

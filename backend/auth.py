@@ -1,4 +1,5 @@
 import bcrypt
+import os
 from fastapi import HTTPException, Request
 from sqlmodel import select
 from db import AsyncSessionLocal
@@ -19,6 +20,24 @@ async def verify_api_key(token: str):
         key_id, secret = token.rsplit(".", 1)  # split on last dot
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid API key format")
+    
+    # Development mode: if database not configured, allow test keys
+    if AsyncSessionLocal is None:
+        # Allow any key in format "key_id.secret" for development/testing
+        # In production, DATABASE_URL must be set
+        if os.getenv("ENVIRONMENT") == "production":
+            raise HTTPException(status_code=500, detail="Database not configured")
+        # Return mock APIKey for development
+        from models import APIKey as APIKeyModel
+        mock_key = APIKeyModel(
+            key_id=key_id,
+            api_key_hash="",
+            is_active=True,
+            customer_id="dev-customer",
+            name=f"Dev Key {key_id}"
+        )
+        mock_key.id = key_id  # Set ID for rate limiting
+        return mock_key
     
     async with AsyncSessionLocal() as session:
         # O(1) lookup by key_id (indexed)
