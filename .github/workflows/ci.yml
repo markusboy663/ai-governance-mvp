@@ -47,10 +47,25 @@ jobs:
           export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ai_governance
           alembic upgrade head || true
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_governance
         run: |
           cd backend
           source venv/bin/activate
-          pytest -v --tb=short
+          pytest -v --tb=short tests/test_health.py
+
+      - name: Create test database for integration tests
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE test_ai_governance;" || true
+
+      - name: Run E2E integration tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/ai_governance
+          TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/test_ai_governance
+        run: |
+          cd backend
+          source venv/bin/activate
+          pytest -v --tb=short tests/test_integration.py
