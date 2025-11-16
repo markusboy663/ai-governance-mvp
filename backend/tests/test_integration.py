@@ -30,7 +30,7 @@ from fastapi.testclient import TestClient
 from main import app, CheckRequest
 from models import Customer, APIKey, Policy, CustomerPolicy
 from sqlmodel import SQLModel
-from db import AsyncSessionLocal, SessionDep
+from db import AsyncSessionLocal, SessionDep, get_session
 from async_logger import init_logger, shutdown_logger
 
 # Test database configuration
@@ -192,11 +192,12 @@ async def seed_data(db_session):
 @pytest.fixture
 def client(db_session):
     """Create test client with app"""
-    # Override dependency to use test session
+    # Override the get_session function to return test session
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
     
-    app.dependency_overrides[SessionDep] = override_get_session
+    # Override the actual function, not the Annotated type
+    app.dependency_overrides[get_session] = override_get_session
     
     # Use sync TestClient instead of AsyncClient
     test_client = TestClient(app)
