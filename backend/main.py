@@ -3,8 +3,9 @@ from fastapi import FastAPI, Depends, Request, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from auth import api_key_dependency
-from models import APIKey, UsageLog
+from models import APIKey
 from rate_limit import check_rate_limit
+from async_logger import init_logger, shutdown_logger, queue_log, get_queue_stats
 import uuid
 from db import AsyncSessionLocal
 import sentry_sdk
@@ -108,23 +109,20 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
     
     allowed = risk_score < 50
 
-    # AUDIT LOGGING: Log to database (metadata only, never content)
-    # This is the primary audit trail for governance decisions
+    # AUDIT LOGGING: Queue log to async queue (non-blocking)
+    # Background worker batches and writes every N seconds or M logs
     try:
-        async with AsyncSessionLocal() as session:
-            log = UsageLog(
-                id=str(uuid.uuid4()),
-                customer_id=api_key.customer_id,
-                api_key_id=api_key.id,
-                model=model,
-                operation=operation,
-                meta=metadata,
-                risk_score=risk_score,
-                allowed=allowed,
-                reason=reason
-            )
-            session.add(log)
-            await session.commit()
+        await queue_log(
+            id=str(uuid.uuid4()),
+            customer_id=api_key.customer_id,
+            api_key_id=api_key.id,
+            model=model,
+            operation=operation,
+            meta=metadata,
+            risk_score=risk_score,
+            allowed=allowed,
+            reason=reason
+        )
     except Exception as e:
         # Log to Sentry but don't fail the request
         if SENTRY_DSN:
@@ -133,6 +131,24 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
         pass
 
     return CheckResponse(allowed=allowed, risk_score=risk_score, reason=reason)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize async logger on startup"""
+    await init_logger()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Flush logs on shutdown"""
+    await shutdown_logger()
+
+
+@app.get("/debug/logs/queue")
+async def debug_queue_stats(api_key: APIKey = Depends(api_key_dependency)):
+    """Debug endpoint: get async logger queue stats"""
+    return await get_queue_stats()
 
 
 

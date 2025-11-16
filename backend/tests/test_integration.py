@@ -29,6 +29,7 @@ import bcrypt
 from main import app, CheckRequest
 from models import Base, Customer, APIKey, Policy, CustomerPolicy
 from db import AsyncSessionLocal
+from async_logger import init_logger, shutdown_logger
 
 # Test database configuration
 TEST_DATABASE_URL = os.getenv(
@@ -189,6 +190,9 @@ async def seed_data(db_session):
 @pytest.fixture
 async def client(db_session):
     """Create test client with app"""
+    # Initialize async logger for tests
+    await init_logger()
+    
     # Override dependency to use test session
     async def override_get_session():
         return db_session
@@ -199,6 +203,8 @@ async def client(db_session):
     async with httpx.AsyncClient(app=app, base_url="http://test") as client:
         yield client
     
+    # Cleanup
+    await shutdown_logger()
     app.dependency_overrides.clear()
 
 
