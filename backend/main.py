@@ -176,11 +176,12 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
         reason = "contains_personal_data"
     
     # If external model and policy says block, high risk
-    if metadata.get("is_external_model"):
+    if metadata.get("uses_external_model"):
         risk_score += 50
         reason = "external_model_detected"
     
-    allowed = risk_score < 50
+    # Block if any risk flags detected
+    allowed = risk_score == 0
 
     # Record governance decision metric
     record_governance_decision(
