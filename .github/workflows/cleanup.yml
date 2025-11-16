@@ -1,0 +1,36 @@
+name: Cleanup old logs
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Søndag 02:00 UTC
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      
+      - name: Install deps
+        run: |
+          cd backend
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+      
+      - name: Run cleanup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd backend
+          source venv/bin/activate
+          DATABASE_URL=${DATABASE_URL} python scripts/cleanup_logs.py 90
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Cleanup job failed - check logs"

@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlmodel[postgresql]
+asyncpg
+alembic
+python-dotenv
+bcrypt
+pytest
+pytest-asyncio
+httpx
+sentry-sdk
+psycopg2-binary

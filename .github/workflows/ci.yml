@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_governance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install backend deps
+        run: |
+          cd backend
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Run alembic migrations (generate DB)
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_governance
+        run: |
+          cd backend
+          source venv/bin/activate
+          export DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/ai_governance
+          alembic upgrade head || true
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_governance
+        run: |
+          cd backend
+          source venv/bin/activate
+          pytest -v --tb=short
