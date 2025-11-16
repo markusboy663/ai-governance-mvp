@@ -27,7 +27,8 @@ import uuid
 import bcrypt
 
 from main import app, CheckRequest
-from models import Base, Customer, APIKey, Policy, CustomerPolicy
+from models import Customer, APIKey, Policy, CustomerPolicy
+from sqlmodel import SQLModel
 from db import AsyncSessionLocal
 from async_logger import init_logger, shutdown_logger
 
@@ -57,15 +58,15 @@ async def test_engine():
     # Create all tables
     async with engine.begin() as conn:
         # Drop existing tables for clean state
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.drop_all)
         # Create fresh tables
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
     
     yield engine
     
     # Cleanup after tests
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.drop_all)
     
     await engine.dispose()
 

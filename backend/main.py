@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,7 +23,25 @@ SENTRY_DSN = os.getenv("SENTRY_DSN", "")
 if SENTRY_DSN:
     sentry_sdk.init(SENTRY_DSN, traces_sample_rate=0.0)
 
-app = FastAPI(title="AI Governance MVP")
+# Lifespan context manager for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle startup and shutdown events"""
+    # Startup
+    try:
+        await init_logger()
+    except Exception as e:
+        print(f"⚠️  Logger initialization failed (OK for testing): {e}")
+    
+    yield
+    
+    # Shutdown
+    try:
+        await shutdown_logger()
+    except Exception as e:
+        print(f"⚠️  Logger shutdown failed: {e}")
+
+app = FastAPI(title="AI Governance MVP", lifespan=lifespan)
 
 # Enable CORS for frontend dashboard
 app.add_middleware(
@@ -193,24 +212,6 @@ async def check(body: CheckRequest, api_key: APIKey = Depends(api_key_dependency
         pass
 
     return CheckResponse(allowed=allowed, risk_score=risk_score, reason=reason)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize async logger on startup"""
-    try:
-        await init_logger()
-    except Exception as e:
-        print(f"⚠️  Logger initialization failed (OK for testing): {e}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Flush logs on shutdown"""
-    try:
-        await shutdown_logger()
-    except Exception as e:
-        print(f"⚠️  Logger shutdown failed: {e}")
 
 
 @app.get("/debug/logs/queue")
