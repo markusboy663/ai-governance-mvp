@@ -27,31 +27,31 @@ export default function KeysPage() {
   const fetchKeys = async () => {
     try {
       setLoading(true);
-      // In real app, would call: /api/keys
-      // Mock data for now
-      const mockKeys: ApiKey[] = [
-        {
-          id: "key_1",
-          name: "Pilot Key",
-          key_id: "550e8400-e29b-41d4-a716-446655440000",
-          created_at: "2025-11-16T10:00:00Z",
-          last_used: "2025-11-16T14:30:00Z",
-          requests_count: 1250,
+      // Fetch real data from backend API
+      const response = await fetch("http://localhost:8000/api/admin/keys", {
+        headers: {
+          "Authorization": "Bearer test_admin_key",
+          "Content-Type": "application/json",
         },
-        {
-          id: "key_2",
-          name: "Testing Key",
-          key_id: "550e8400-e29b-41d4-a716-446655440001",
-          created_at: "2025-11-15T09:00:00Z",
-          last_used: "2025-11-16T12:00:00Z",
-          requests_count: 450,
-        },
-      ];
-      setKeys(mockKeys);
-      setError(null);
+      });
+
+      if (!response.ok) {
+        // If backend not configured, show empty state
+        if (response.status === 401 || response.status === 404) {
+          setKeys([]);
+          setError("Backend not configured. Create first test customer to see data.");
+        } else {
+          throw new Error(`API error: ${response.status}`);
+        }
+      } else {
+        const data = await response.json();
+        setKeys(data || []);
+        setError(null);
+      }
     } catch (err) {
-      setError("Failed to load API keys");
+      setError("Failed to load API keys. Ensure backend is running on port 8000.");
       console.error(err);
+      setKeys([]);
     } finally {
       setLoading(false);
     }

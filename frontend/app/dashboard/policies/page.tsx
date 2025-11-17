@@ -22,36 +22,31 @@ export default function PoliciesPage() {
   const fetchPolicies = async () => {
     try {
       setLoading(true);
-      // Mock data for now - in real app would call /api/policies
-      const mockPolicies: Policy[] = [
-        {
-          id: "policy_1",
-          name: "PII Detection",
-          description:
-            "Blocks requests containing personal identifiable information (SSN, email, phone)",
-          enabled: true,
-          violations_count: 42,
+      // Fetch real data from backend API
+      const response = await fetch("http://localhost:8000/api/admin/policies", {
+        headers: {
+          "Authorization": "Bearer test_admin_key",
+          "Content-Type": "application/json",
         },
-        {
-          id: "policy_2",
-          name: "External Model Detection",
-          description: "Prevents calls to unauthorized external AI models",
-          enabled: true,
-          violations_count: 8,
-        },
-        {
-          id: "policy_3",
-          name: "Rate Limiting",
-          description: "Enforces rate limits per API key (100 req/60s)",
-          enabled: true,
-          violations_count: 156,
-        },
-      ];
-      setPolicies(mockPolicies);
-      setError(null);
+      });
+
+      if (!response.ok) {
+        // If backend not configured, show empty state
+        if (response.status === 401 || response.status === 404) {
+          setPolicies([]);
+          setError("Backend not configured. Create policies to see data.");
+        } else {
+          throw new Error(`API error: ${response.status}`);
+        }
+      } else {
+        const data = await response.json();
+        setPolicies(data || []);
+        setError(null);
+      }
     } catch (err) {
-      setError("Failed to load policies");
+      setError("Failed to load policies. Ensure backend is running on port 8000.");
       console.error(err);
+      setPolicies([]);
     } finally {
       setLoading(false);
     }

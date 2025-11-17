@@ -31,31 +31,38 @@ export default function LogsPage() {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      // Mock data - in real app would call /api/logs?page=X&limit=Y
-      const mockLogs: UsageLog[] = Array.from({ length: 150 }, (_, i) => ({
-        id: `log_${i}`,
-        timestamp: new Date(
-          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        api_key_name: ["Pilot Key", "Testing Key", "Dev Key"][i % 3],
-        model: ["gpt-4", "gpt-3.5", "claude-3"][i % 3],
-        operation: ["classify", "summarize", "translate"][i % 3],
-        allowed: Math.random() > 0.2, // 80% allowed
-        reason:
-          Math.random() > 0.2
-            ? "approved"
-            : ["contains_pii", "external_model", "rate_limited"][i % 3],
-        latency_ms: Math.random() * 500 + 10,
-        input_length: Math.floor(Math.random() * 5000 + 100),
-      }))
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      // Fetch real data from backend API
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: LOGS_PER_PAGE.toString(),
+        ...(filterModel && { model: filterModel }),
+        ...(filterAllowed !== "all" && { allowed: filterAllowed === "allowed" ? "true" : "false" }),
+      });
 
-      setLogs(mockLogs);
-      setError(null);
-      setCurrentPage(1);
+      const response = await fetch(`http://localhost:8000/api/admin/logs?${params}`, {
+        headers: {
+          "Authorization": "Bearer test_admin_key",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        // If backend not configured, show empty state
+        if (response.status === 401 || response.status === 404) {
+          setLogs([]);
+          setError("Backend not configured. Make API calls to generate logs.");
+        } else {
+          throw new Error(`API error: ${response.status}`);
+        }
+      } else {
+        const data = await response.json();
+        setLogs(data || []);
+        setError(null);
+      }
     } catch (err) {
-      setError("Failed to load logs");
+      setError("Failed to load logs. Ensure backend is running on port 8000.");
       console.error(err);
+      setLogs([]);
     } finally {
       setLoading(false);
     }

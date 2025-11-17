@@ -90,6 +90,7 @@ python -m pytest tests/test_integration.py -v
 - Backend: http://localhost:8000/health → `{status: ok}`
 - Frontend: http://localhost:3000 → Dashboard loads
 - Tests: All 15 integration tests passing
+- Dashboard: Shows REAL data from backend API (no mock data)
 
 ---
 
